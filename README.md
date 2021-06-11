@@ -1,4 +1,4 @@
-# Project Descption
+# Descption
 This project implement raft by golang. It just for study and not for production, it just implement election and append log now.
 It will be improved in some time.
 
