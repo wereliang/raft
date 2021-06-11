@@ -1,5 +1,5 @@
 # Descption
-This project implement raft by golang. It just for study and not for production, it just implement election and append log now.
+This project implement raft simply by golang. It just for study and not for production, just implement election and append log now.
 It will be improved in some time.
 
 # Build and run example
@@ -26,7 +26,10 @@ It will be improved in some time.
 
 - return redirect if not leader (if instance3 is not leader):
 
-`curl "http://127.0.0.1:5568/put?key=hello&value=world"`
+```
+curl "http://127.0.0.1:5568/put?key=hello&value=world"
+<a href="http://127.0.0.1:5567">Found</a>
+```
 
 
 
