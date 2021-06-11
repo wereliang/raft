@@ -1,5 +1,3 @@
-git.yingzhongtong.com/combase/gowork v1.0.1 h1:YWPstZjRl4G1m7f9MOIFlMAQUVkcQp3HqU3ZyLmnDFw=
-git.yingzhongtong.com/combase/gowork v1.0.1/go.mod h1:mxvYla7uaDaS4O3sfVc15G7Bx45RqXMaFKXM+3PliOc=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

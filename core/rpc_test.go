@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"git.yingzhongtong.com/combase/gowork/src/xiaoying/common/xylog"
+	"github.com/wereliang/raft/pkg/xlog"
 )
 
 type chanPair struct {
@@ -33,13 +33,13 @@ func (tp *channelTransport) Vote(node *Node, req *VoteRequest, timeout time.Dura
 		case pair.input <- req:
 			timer.Reset(timeout)
 		case <-timer.C:
-			xylog.Debug("channel input timeout. node:%d", node.ID)
+			xlog.Debug("channel input timeout. node:%d", node.ID)
 			return nil, fmt.Errorf("channel input timeout")
 		}
 
 		select {
 		case <-timer.C:
-			xylog.Debug("channel output timeout. %v", node)
+			xlog.Debug("channel output timeout. %v", node)
 			return nil, fmt.Errorf("channel output timeout")
 		case resp := <-pair.output:
 			timer.Stop()
@@ -59,13 +59,13 @@ func (tp *channelTransport) AppendLog(node *Node, req *AppendLogRequest, timeout
 		case pair.input <- req:
 			timer.Reset(timeout)
 		case <-timer.C:
-			xylog.Debug("channel input timeout. %v", node)
+			xlog.Debug("channel input timeout. %v", node)
 			return nil, fmt.Errorf("channel input timeout")
 		}
 
 		select {
 		case <-timer.C:
-			xylog.Debug("channel output timeout. %v", node)
+			xlog.Debug("channel output timeout. %v", node)
 			return nil, fmt.Errorf("channel output timeout")
 		case resp := <-pair.output:
 			timer.Stop()
