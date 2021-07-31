@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -110,6 +111,8 @@ func (app *TestApp) Clear() {
 
 func init() {
 	xlog.SetLogFilePath("./log", "raft.log")
+
+	os.Mkdir("./data", os.ModePerm)
 
 	app = &TestApp{}
 
@@ -360,7 +363,8 @@ func TestSyncLog(t *testing.T) {
 		{2, 0, []byte("d=4")},
 		{2, 0, []byte("e=5")},
 	}
-	lastIndex, _ := raft.raftLog.AppendLog(items, 1)
+	lastIndex, err := raft.raftLog.AppendLog(items, 1)
+	assert.Nil(t, err)
 	assert.EqualValues(t, lastIndex, 5)
 	lastItem := raft.raftLog.Index(lastIndex)
 
@@ -488,4 +492,11 @@ func TestHandleAppend(t *testing.T) {
 		assert.Equal(t, app.Query("g"), "") // 未提交
 	})
 
+}
+
+func TestRaftDesoty(t *testing.T) {
+	err := os.RemoveAll("./data/")
+	if err != nil {
+		fmt.Println(err)
+	}
 }

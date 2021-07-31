@@ -1,5 +1,5 @@
 # Descption
-This project implement raft simply by golang. It just for study and not for production, just implement election and append log now.
+This project implement raft simply by golang. It just for study and not for production, just implement election and append log, and persist log.
 It will be improved in some time.
 
 # Build and run example
@@ -31,5 +31,6 @@ curl "http://127.0.0.1:5568/put?key=hello&value=world"
 <a href="http://127.0.0.1:5567">Found</a>
 ```
 
-
+# Persist 
+New version support persist, inclue raft state persist and append log persist. When instance restart, the log will replay and commit index and apply index will restore finally.
 

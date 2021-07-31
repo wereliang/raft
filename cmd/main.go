@@ -184,9 +184,9 @@ func ParseConfig() (*core.Config, []*server.AppNode) {
 	}
 
 	return &core.Config{
-		Node:          node,
-		Nodes:         nodes,
-		DataDir:       "./data",
+		Node:  node,
+		Nodes: nodes,
+		// DataDir:       "./data",
 		HeartBeatTime: 1000,
 		VoteWaitTime:  3000,
 		VoteRangeTime: 1000,

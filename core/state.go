@@ -25,6 +25,13 @@ type RaftState struct {
 	LastApplied int64 `json:"lastapplied"`
 	// internal
 	Role Role `json:"role"`
+	// Persistence path
+	FilePath string
+}
+
+type persistState struct {
+	CurrentTerm int64 `json:"currentterm"`
+	VotedFor    int64 `json:"votefor"`
 }
 
 func (s *RaftState) Copy() RaftState {
@@ -44,16 +51,13 @@ func (s *RaftState) LoadState(file string) error {
 		if err != nil {
 			return err
 		}
-		statePersis := struct {
-			CurrentTerm int64 `json:"currenttime"`
-			VotedFor    int64 `json:"votefor"`
-		}{}
-		err = json.Unmarshal(data, &statePersis)
+		var tmpState persistState
+		err = json.Unmarshal(data, &tmpState)
 		if err != nil {
 			return err
 		}
-		s.CurrentTerm = statePersis.CurrentTerm
-		s.VotedFor = statePersis.VotedFor
+		s.CurrentTerm = tmpState.CurrentTerm
+		s.VotedFor = tmpState.VotedFor
 	} else {
 		s.CurrentTerm = 1
 		s.VotedFor = 0
@@ -69,7 +73,27 @@ func (s *RaftState) ResetVote() {
 	s.VotedFor = 0
 }
 
+// SaveState persist state to file
 func (s *RaftState) SaveState() {
+	tmpState := &persistState{s.CurrentTerm, s.VotedFor}
+	f, err := os.OpenFile(s.FilePath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
+	if err != nil {
+		panic("save state error." + err.Error())
+	}
+	defer f.Close()
+	data, err := json.Marshal(tmpState)
+	if err != nil {
+		panic("save state error." + err.Error())
+	}
+	f.Write(data)
+	f.Sync()
+}
+
+// Persist change current state and save to file
+func (s *RaftState) Persist(term, vote int64) error {
+	s.CurrentTerm, s.VotedFor = term, vote
+	s.SaveState()
+	return nil
 }
 
 // just for test
@@ -83,7 +107,8 @@ func (s *RaftState) reset() {
 
 func newRaftState(file string) (*RaftState, error) {
 	state := &RaftState{
-		Role: Follower,
+		Role:     Follower,
+		FilePath: file,
 	}
 	err := state.LoadState(file)
 	if err != nil {

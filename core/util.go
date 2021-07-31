@@ -1,11 +1,25 @@
 package core
 
-import "time"
+import (
+	"os"
+	"time"
+)
 
 func NewStopTimer() *time.Timer {
 	timer := time.NewTimer(10 * time.Second)
 	timer.Stop()
 	return timer
+}
+
+func PathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 type LoopCtl struct {

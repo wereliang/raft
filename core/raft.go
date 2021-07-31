@@ -60,13 +60,19 @@ func NewRaft(config *Config, transport Transport, app Application) (Raft, error)
 		return nil, err
 	}
 
+	// raftLog := log.NewMemLog()
+	raftLog, err := log.NewStorage(config.DataDir)
+	if err != nil {
+		return nil, err
+	}
+
 	rand.Seed(time.Now().Unix())
 	raft := &raftImpl{
 		config:       config,
 		state:        state,
 		app:          app,
 		node:         config.Node,
-		raftLog:      log.NewMemLog(),
+		raftLog:      raftLog,
 		transport:    transport,
 		appendC:      make(chan *raftEvent, 256),
 		notifyC:      make(chan *raftEvent, 256),
