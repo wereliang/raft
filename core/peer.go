@@ -37,7 +37,7 @@ type PeerConnector struct {
 	transport Transport
 	input     chan *raftEvent
 	closed    bool
-	argv      interface{} // custom param
+	// argv      interface{} // custom param
 }
 
 func NewPeerConnector(peer *Peer, transport Transport) *PeerConnector {
@@ -78,7 +78,8 @@ func (p *PeerConnector) Peer() *Peer {
 }
 
 func (p *PeerConnector) Start() {
-	p.input = make(chan *raftEvent, 1)
+	// change input to no buffer channel, ensure append log serially
+	p.input = make(chan *raftEvent)
 	p.closed = false
 
 	go func() {

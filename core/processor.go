@@ -112,6 +112,8 @@ func (p *CommProcessor) handleVote(request interface{}) (interface{}, error) {
 		rsp.VoteGranted = true
 	}
 
+	p.state.SaveState()
+
 	// if term > local , become follower
 	if p.state.Role == Candidate || p.state.Role == Leader {
 		p.notifySwitch(Follower)
@@ -153,6 +155,8 @@ func (p *CommProcessor) handleAppend(request interface{}) (interface{}, error) {
 		p.notifySwitch(Follower)
 		p.state.ResetVote()
 	}
+
+	p.state.SaveState()
 
 	// match prelog
 	preItem := p.log.Index(req.PreLogIndex)
@@ -269,8 +273,8 @@ func (p *CandidateProcessor) voteLoop() *LoopCtl {
 
 	logItem := p.log.LastItem()
 	p.state.Lock()
-	p.state.CurrentTerm += 1
-	p.state.VotedFor = int64(p.node.ID)
+	p.state.Persist(p.state.CurrentTerm+1, int64(p.node.ID))
+
 	rpc := &rpcRequest{
 		request: &VoteRequest{
 			Term:         p.state.CurrentTerm,
@@ -352,8 +356,7 @@ func (p *CandidateProcessor) doVoteResponse(response, request *raftEvent) (*Peer
 	if voteResponse.Term > p.state.CurrentTerm {
 		xlog.Debug("vote response term [%d] > current [%d]. switch to follower",
 			voteResponse.Term, p.state.CurrentTerm)
-		p.state.CurrentTerm = voteResponse.Term
-		p.state.VotedFor = 0
+		p.state.Persist(voteResponse.Term, 0)
 		p.notifySwitch(Follower)
 	}
 	return nil, false
@@ -421,6 +424,11 @@ func (p *LeaderProcessor) handleAppAppend(request interface{}) (interface{}, err
 		return false, fmt.Errorf("append log error. %s", err)
 	}
 
+	// clear old data
+	for len(p.syncC) > 0 {
+		<-p.syncC
+	}
+
 	// TODO: If cann't reach quorum return directly, it also solve network split.
 	for _, ctl := range p.ctls {
 		select {
@@ -441,9 +449,15 @@ LOOP:
 		case res := <-p.syncC:
 			// maybe consume last time's result
 			// fn is routine local function doAppendResponse
-			evt := res.(*raftEvent)
-			fn := evt.GetRPCResponse().GetPeerConnector().argv.(func(evt *raftEvent) int64)
-			if fn(evt) >= last {
+			// evt := res.(*raftEvent)
+			// fn := evt.GetRPCResponse().GetPeerConnector().argv.(func(evt *raftEvent) int64)
+			// if fn(evt) >= last {
+			// 	matchCnt++
+			// 	if matchCnt >= p.quorum() {
+			// 		break LOOP
+			// 	}
+			// }
+			if res.(int64) >= last {
 				matchCnt++
 				if matchCnt >= p.quorum() {
 					break LOOP
@@ -463,15 +477,16 @@ func (p *LeaderProcessor) resetTimer(timer *time.Timer) {
 	timer.Reset(time.Duration(p.config.HeartBeatTime) * time.Millisecond)
 }
 
-func (p *LeaderProcessor) doAppendAndResetTimer(conn *PeerConnector, resc chan interface{}, block bool, timer *time.Timer) {
+func (p *LeaderProcessor) doAppendAndResetTimer(conn *PeerConnector, resc chan interface{}, block bool, timer *time.Timer) bool {
 	p.state.RLock()
 	defer p.state.RUnlock()
-	p.doAppendRequest(conn, resc, block)
+	b := p.doAppendRequest(conn, resc, block)
 	p.resetTimer(timer)
+	return b
 }
 
 // keepalive or append new log
-func (p *LeaderProcessor) doAppendRequest(conn *PeerConnector, resc chan interface{}, block bool) {
+func (p *LeaderProcessor) doAppendRequest(conn *PeerConnector, resc chan interface{}, block bool) bool {
 	lastIndex := conn.peer.NextIndex - 1
 	preLogItem := p.log.Index(lastIndex)
 
@@ -503,10 +518,9 @@ func (p *LeaderProcessor) doAppendRequest(conn *PeerConnector, resc chan interfa
 
 	event := newEvent(EventInnAppendLogRequest, rpc, resc)
 	if block {
-		conn.Send(event)
-	} else {
-		conn.SendDontWait(event)
+		return conn.Send(event)
 	}
+	return conn.SendDontWait(event)
 }
 
 // doAppendResponse return match index
@@ -531,8 +545,7 @@ func (p *LeaderProcessor) doAppendResponse(event *raftEvent, resc chan interface
 	if !response.Success {
 		term := p.state.CurrentTerm
 		if response.Term > term {
-			p.state.CurrentTerm = response.Term
-			p.state.VotedFor = 0
+			p.state.Persist(response.Term, 0)
 			xlog.Debug("leader switch to follower")
 			p.notifySwitch(Follower)
 			return matchIndex
@@ -586,7 +599,7 @@ func (p *LeaderProcessor) doAppendResponse(event *raftEvent, resc chan interface
 
 	// continue sync if matching stage.
 	// match=-1 mean error, keepalive next timer
-	if matchIndex >= 0 {
+	if matchIndex >= 0 && resc != nil {
 		if peer.NextIndex != p.log.LastIndex()+1 {
 			xlog.Debug("conn.peer.nextIndex != p.log.LastIndex()+1")
 			// not call doAppendAndResetTimer here, will deadlock
@@ -608,6 +621,28 @@ func (p *LeaderProcessor) initPeerMatch() {
 	}
 }
 
+// syncAppend ensure append log serially, use no buffer channel for send input, and no buffer channel for recv
+// if append request false, mean waiting for response, recv channel block util get response
+func (p *LeaderProcessor) syncAppend(c *PeerConnector, resc chan interface{}, timer *time.Timer) {
+	loop := 10
+	for loop > 0 {
+		select {
+		case res := <-resc:
+			p.syncC <- p.doAppendResponse(res.(*raftEvent), resc, timer)
+			return
+		default:
+			if !p.doAppendAndResetTimer(c, resc, false, timer) {
+				time.Sleep(time.Millisecond * 100)
+				loop--
+				continue
+			}
+			res := <-resc
+			p.syncC <- p.doAppendResponse(res.(*raftEvent), resc, timer)
+			return
+		}
+	}
+}
+
 func (p *LeaderProcessor) appendLoop() []*LoopCtl {
 	p.initPeerMatch()
 	conns := p.connMgr.Conns
@@ -618,29 +653,30 @@ func (p *LeaderProcessor) appendLoop() []*LoopCtl {
 		ctls = append(ctls, ctl)
 
 		go func(c *PeerConnector, ctl *LoopCtl) {
-			resc := make(chan interface{}, 1)
+			// resc := make(chan interface{}, 1)
+			resc := make(chan interface{})
 			timer := NewStopTimer()
 
 			// Application append log outside is sync, and will use resc and timer local routine.
 			// So use closure function here
-			c.argv = func(evt *raftEvent) int64 {
-				return p.doAppendResponse(evt, resc, timer)
-			}
+			// c.argv = func(evt *raftEvent) int64 {
+			// 	return p.doAppendResponse(evt, resc, timer)
+			// }
 
 			p.doAppendAndResetTimer(c, resc, false, timer)
 		LOOP:
 			for {
 				select {
 				case <-timer.C:
-					xlog.Debug("heartbeat timeout")
+					xlog.Debug("ID:%d heartbeat timeout", c.peer.ID)
 					p.doAppendAndResetTimer(c, resc, false, timer)
 				case res := <-resc:
 					p.doAppendResponse(res.(*raftEvent), resc, timer)
 				case cmd := <-ctl.C:
 					switch cmd {
 					case "append": // trigger by application and using syncC !!!
-						p.doAppendAndResetTimer(c, p.syncC, true, timer)
 						ctl.Response("")
+						p.syncAppend(c, resc, timer)
 					default:
 						timer.Stop()
 						ctl.CloseResponse()

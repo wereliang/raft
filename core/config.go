@@ -2,15 +2,17 @@ package core
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/wereliang/raft/pkg/xlog"
 )
 
 const (
-	RaftPort             = 9500
-	DefaultHeartBeatTime = 50  // 50ms
-	DefaultVoteWaitTime  = 200 // 200ms-300ms
-	DefualtVoteRangeTime = 100
+	RaftPort = 9500
+	// DefaultHeartBeatTime = 50  // 50ms
+	// DefaultVoteWaitTime  = 200 // 200ms-300ms
+	// DefualtVoteRangeTime = 100
 )
 
 type Node struct {
@@ -38,6 +40,12 @@ type Config struct {
 	VoteRangeTime int     `json:"voterangetime"`
 }
 
+var defaultConfig = Config{
+	HeartBeatTime: 50,  // 50ms
+	VoteWaitTime:  200, // 200ms-300ms
+	VoteRangeTime: 100,
+}
+
 func (c *Config) Check() error {
 	if err := c.Node.Check(); err != nil {
 		return fmt.Errorf("ID can't empty")
@@ -45,20 +53,34 @@ func (c *Config) Check() error {
 	if len(c.Nodes) == 0 {
 		return fmt.Errorf("peer can't nil")
 	}
-	if c.DataDir == "" {
-		c.DataDir = "./data"
-	}
+
 	if c.HeartBeatTime == 0 {
-		c.HeartBeatTime = DefaultHeartBeatTime
+		c.HeartBeatTime = defaultConfig.HeartBeatTime
 	}
 	if c.VoteWaitTime == 0 {
-		c.VoteWaitTime = DefaultVoteWaitTime
+		c.VoteWaitTime = defaultConfig.VoteWaitTime
 	}
 	if c.VoteRangeTime == 0 {
-		c.VoteRangeTime = DefualtVoteRangeTime
+		c.VoteRangeTime = defaultConfig.VoteRangeTime
 	}
+	c.checkDataDir()
 	xlog.Debug("config:%v", c)
 	return nil
+}
+
+func (c *Config) checkDataDir() {
+	if c.DataDir == "" {
+		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+		if err != nil {
+			panic(err)
+		}
+		c.DataDir = filepath.Join(dir, "data")
+	}
+
+	err := os.MkdirAll(c.DataDir, os.ModePerm)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // GetPeer return nodes exclude local node
