@@ -43,7 +43,7 @@ var (
 )
 
 // SetLogFilePath set log file path for glog
-// It just adapte for old xylog, the new use NewLogger(config)
+// It just adapte for old xlog, the new use NewLogger(config)
 func SetLogFilePath(path, file string) {
 	once.Do(func() {
 		gwriter.FilePath = path
@@ -59,7 +59,7 @@ func SetLogFilePath(path, file string) {
 
 // SetLogRotateFileSize set log rotate size
 // This fuction not add writer, you must call SetLogFilePath
-// It just adapte for old xylog, the new use NewLogger(config)
+// It just adapte for old xlog, the new use NewLogger(config)
 func SetLogRotateFileSize(size int64) {
 	gwriter.RotateSize = uint64(size)
 }
