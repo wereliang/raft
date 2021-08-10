@@ -106,23 +106,6 @@ func (s *Segment) Load() error {
 	return nil
 }
 
-// func (s *Segment) Write(data []byte) error {
-// 	var nvar int
-// 	pos := uint64(len(s.data))
-// 	s.items = append(s.items, &segItem{pos, len(data)})
-// 	s.data, nvar = appendUvarint(s.data, uint64(len(data)))
-// 	s.data = append(s.data, data...)
-// 	_, err := s.file.Write(s.data[pos:])
-// 	if err != nil {
-// 		// rollback
-// 		s.items = s.items[:len(s.items)-1]
-// 		s.data = s.data[:len(s.data)-nvar-len(data)]
-// 		return err
-// 	}
-// 	s.last++
-// 	return nil
-// }
-
 func (s *Segment) Write(datas [][]byte, sync bool) error {
 	oldPos, pos := uint64(len(s.data)), uint64(len(s.data))
 	var nvar int
